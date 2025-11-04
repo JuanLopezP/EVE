@@ -2,18 +2,22 @@
 
 
 
-const int GH = 4;  // GREEN HIGH  (PWM)
-const int BH = 5;  // BLUE HIGH  (PWM)
-const int YH = 8;  // YELLOW HIGH (PWM)
+const int GH = 5;  // GREEN HIGH  (PWM)
+const int BH = 6;  // BLUE HIGH  (PWM)
+const int YH = 9;  // YELLOW HIGH (PWM)
 
-const int GL = 9;  // GREEN LOW  (digital)
-const int BL = 10;  // BLUE LOW  (digital)
-const int YL = 11; // YELLOW LOW  (digital)
+const int GL = 4;  // GREEN LOW  (digital)
+const int BL = 8;  // BLUE LOW  (digital)
+const int YL = 10; // YELLOW LOW  (digital)
 
 const int POT = A0;
 
 bool sentidoHorario = true;
 
+// Pines de los sensores Hall con interrup
+const int H0_PIN = 2;
+const int H1_PIN = 3;
+const int H2_PIN = 7;
 
 -------------------------------------->
 
@@ -64,9 +68,9 @@ void loop() {
     analogWrite(BH,0);
     analogWrite(YH,0);
 
-    digitalWrite(GL,LOW);
-    digitalWrite(BL,LOW);
-    digitalWrite(YL,LOW);
+    digitalWrite(GL,HIGH);
+    digitalWrite(BL,HIGH);
+    digitalWrite(YL,HIGH);
 
   // Info por si acaso
     Serial.print("STOP | pot =");
@@ -87,9 +91,9 @@ int GH_EC = H0 && !H2;
 int BH_EC = !H0 && H1;
 int YH_EC = !H1 && H2;
 
-int GL_EC = !H0 && H2;
-int BL_EC = H0 && !H1;
-int YL_EC = H1 && !H2;
+int GL_EC = H0 && !H2;
+int BL_EC = !H0 && H1;
+int YL_EC = !H1 && H2;
 else {
   // Ecuaciones inversas (orden invertido)
   GH_EC =  H1 && (!H2) ;
@@ -107,10 +111,8 @@ if (GH_EC) analogWrite(GH, valorPotDig); else analogWrite(GH, 0);
 if (BH_EC) analogWrite(BH, valorPotDig); else analogWrite(BH, 0);
 if (YH_EC) analogWrite(YH, valorPotDig); else analogWrite(YH, 0);
 
-digitalWrite(GL, GL_EC ? HIGH : LOW);
-digitalWrite(BL, BL_EC ? HIGH : LOW);
-digitalWrite(YL, YL_EC ? HIGH : LOW);
-
-  delay(50);
+digitalWrite(GL, GL_EC ? LOW : HIGH);
+digitalWrite(BL, BL_EC ? LOW : HIGH);
+digitalWrite(YL, YL_EC ? LOW : HIGH);
 
 }
