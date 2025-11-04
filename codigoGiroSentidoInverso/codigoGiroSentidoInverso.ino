@@ -54,6 +54,7 @@ void setup() {
 }
 
 //------------------------------------------------------------------
+
 void loop() {
 
   // leo el potenciómetro
@@ -66,7 +67,6 @@ void loop() {
     PWM = 0;
   } else {
     PWM = map(PWM, 51, 1023, 0, 204);
-    ;
   }
 }
 
@@ -81,7 +81,8 @@ void ISR_Halls() {
   int ValDIO1 = digitalRead(H1_PIN);  //Leo el hall1
   int ValDIO2 = digitalRead(H2_PIN);  //Leo el hall2
 
-  int hallState = (ValDIO0 << 2) | (ValDIO1 << 1) | ValDIO2;
+  int hallState = (ValDIO0 << 2) | (ValDIO1 << 1) | ValDIO2; // asigno mi máscara para poder llamar a
+  // los sensores de efecto hall de forma mas clara y sencilla
   giroSentidoInverso(hallState);
 }
 

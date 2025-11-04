@@ -41,7 +41,7 @@ void setup() {
   pinMode(YL, OUTPUT);
 
 
-  // Interrupciones (cada vez que cambie cualquier hall)
+  // Interrupciones (cada vez que cambie cualquier sensor de efecto hall)
   attachInterrupt(digitalPinToInterrupt(H0_PIN), ISR_Halls, CHANGE);
   attachInterrupt(digitalPinToInterrupt(H1_PIN), ISR_Halls, CHANGE);
   attachInterrupt(digitalPinToInterrupt(H2_PIN), ISR_Halls, CHANGE);
@@ -54,6 +54,7 @@ void setup() {
 }
 
 //------------------------------------------------------------------
+
 void loop() {
 
   // leo el potenciómetro
@@ -66,13 +67,13 @@ void loop() {
     PWM = 0;
   } else {
     PWM = map(PWM, 51, 1023, 0, 204);
-    ;
   }
 }
 
 
 
 //  ---------------------------------------------------------------
+
 // Interrupciones:
 
 void ISR_Halls() {
@@ -81,16 +82,19 @@ void ISR_Halls() {
   int ValDIO1 = digitalRead(H1_PIN);  //Leo el hall1
   int ValDIO2 = digitalRead(H2_PIN);  //Leo el hall2
 
-  int hallState = (ValDIO0 << 2) | (ValDIO1 << 1) | ValDIO2;
+  int hallState = (ValDIO0 << 2) | (ValDIO1 << 1) | ValDIO2;  // asigno mi máscara para poder llamar a
+  // los sensores de efecto hall de forma mas clara y sencilla
+
   giroSentidoDirecto(hallState);
 }
 
 // ------------------------------------------------------------------
+
 void giroSentidoDirecto(int hallState) {
 
 
   switch (hallState) {
-    case 0b000:  //nunca vamos a tener los halls en 000
+    case 0b000:  //nunca vamos a tener los halls en 000 y por tanto no se va a dar
       break;
 
     case 0b001:
@@ -160,7 +164,7 @@ void giroSentidoDirecto(int hallState) {
       digitalWrite(YL, LOW);
       break;
 
-    case 0b111:  //nunca vamos a tener los halls en 111
+    case 0b111:  //nunca vamos a tener los halls en 111 no van a estar todos encendidos a la vez
       break;
   }
 }
