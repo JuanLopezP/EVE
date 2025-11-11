@@ -24,7 +24,44 @@ const int H2_PIN = 7;  // Hall 2
 int PWM;  // declaramos una variable para el PWM
 
 //------------------------------------------------------------------------------
+// Nombro los estados
+enum EstadoMotor {
+  Estado_Aling,  // (así lo escribiste tú)
+  Estado_Ramp,
+  Estado_Run
+};
 
+// estado actual del motor (disposición del rotor en este instante inicial)
+EstadoMotor estado = Estado_Aling;
+
+// tiempo de referencia para no usar delay()
+unsigned long tiempoAnterior = 0;
+
+// secuencia de conmutación que entiende tu switch (la típica)
+int secuencia[6] = { 0b001, 0b101, 0b100, 0b110, 0b010, 0b011 };
+
+// para saber en qué paso de la secuencia vamos cuando forzamos
+int indiceSecuencia = 0;
+
+// cuántos pasos forzados hemos dado ya
+int pasosHechos = 0;
+
+// cuántos pasos queremos dar en la rampa de arranque (12 = 2 vueltas) --> después que trabajen las interrup
+const int pasosParaArrancar = 12;
+
+// para guardar el hall que había justo al arrancar
+int hallInicial = 0;
+
+// *** AÑADIDO *** función auxiliar para encontrar el índice en la secuencia
+int buscarIndicePorHall(int hall) {
+  for (int i = 0; i < 6; i++) {
+    if (secuencia[i] == hall) {
+      return i;
+    }
+  }
+  return 0;  // por si llega algo raro
+}
+//------------------------------------------------------------------------------
 void setup() {
 
   // Sensores Hall como entrada con pullup interno
@@ -51,6 +88,7 @@ void setup() {
   TCCR1B = TCCR1B & 0b11111000 | 0x01;  // Timer1 -> pin 9,10
   TCCR3B = TCCR3B & 0b11111000 | 0x01;  // Timer3 -> pin 5
   TCCR4B = TCCR4B & 0b11111000 | 0x01;  // Timer4 -> pin 6,13
+
   leerHalls();
 }
 
@@ -72,16 +110,72 @@ void loop() {
   } else {
     PWM = map(PWM, 51, 1023, 0, 204);
   }
-// Vamos a arrancarlo desde cero
+  // Vamos a arrancarlo desde cero
+  switch (estado) {
+    case Estado_Aling:
 
 
+      break;
 
+    case Estado_Ramp:
 
+      break;
 
+    case Estado_Run:
 
+      break;
+  }
+  // ---------------------------------------------
+  unsigned long ahora = millis();
 
+  switch (estado) {
+    case Estado_Aling:
+      // en este estado solo queremos mantener el rotor
+      // en la posición real que tenía al inicio (hallInicial)
+      // ya hicimos la conmutación en leerHalls()
+      // aquí solo esperamos un rato sin delay
+      if (ahora - tiempoAnterior >= 200) {  // 200 ms de alineado
+        // pasamos a la rampa
+        // empezamos la rampa desde el índice que corresponde al hall inicial
+        indiceSecuencia = buscarIndicePorHall(hallInicial);
+        pasosHechos = 0;
+        tiempoAnterior = ahora;
+        estado = Estado_Ramp;
+      }
+      break;
 
+    case Estado_Ramp:
+      // aquí vamos forzando la secuencia cada X ms
+      // por ejemplo cada 8 ms
+      if (ahora - tiempoAnterior >= 8) {
+        tiempoAnterior = ahora;
 
+        // activamos el paso actual de la secuencia
+        int hallForzado = secuencia[indiceSecuencia];
+        giroSentidoDirecto(hallForzado);
+
+        // avanzamos al siguiente paso de la secuencia
+        indiceSecuencia++;
+        if (indiceSecuencia >= 6) {
+          indiceSecuencia = 0;  // volvemos al principio
+        }
+
+        pasosHechos++;
+        if (pasosHechos >= pasosParaArrancar) {
+          // ya hemos dado suficientes pasos forzados
+          estado = Estado_Run;
+        }
+      }
+      break;
+
+    case Estado_Run:
+      // aquí ya no hacemos nada especial:
+      // ya funcionan las interrupciones ISR_Halls()
+      break;
+  }
+  // ====================================================
+}
+// ---------------------------------------------
 }
 // -------------------------------------------------------------------
 // Vamos a plantear el arranque
@@ -90,6 +184,12 @@ void leerHalls() {
   int posH0 = digitalRead(H0_PIN);
   int posH1 = digitalRead(H1_PIN);
   int posH2 = digitalRead(H2_PIN);
+
+  hallInicial = (posH0 << 2) | (posH1 << 1) | posH2;
+
+  giroSentidoDirecto(hallInicial);
+
+  tiempoAnterior = millis();
 }
 
 
