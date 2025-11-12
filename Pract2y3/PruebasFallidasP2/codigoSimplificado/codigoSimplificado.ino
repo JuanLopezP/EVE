@@ -122,12 +122,12 @@ void loop() {
   //Serial.print(valorPotDig);
 
   // También vemos el estado hall actual
-  //Serial.print("   H0=");
-  //Serial.print(H0);
-  //Serial.print(" H1=");
-  //Serial.print(H1);
-  //Serial.print(" H2=");
-  //Serial.println(H2);
+  Serial.print("   H0=");
+  Serial.print(H0);
+Serial.print(" H1=");
+  Serial.print(H1);
+  Serial.print(" H2=");
+  Serial.println(H2);
 }
 
 

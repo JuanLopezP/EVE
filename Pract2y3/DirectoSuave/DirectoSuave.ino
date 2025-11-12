@@ -38,7 +38,7 @@ EstadoMotor estado = Estado_Aling;
 unsigned long tiempoAnterior = 0;
 
 // secuencia de conmutación que entiende tu switch (la típica)
-int secuencia[6] = { 0b001, 0b101, 0b100, 0b110, 0b010, 0b011 };
+int secuencia[6] = { 0b110, 0b100, 0b101, 0b001, 0b011, 0b010 };
 
 // para saber en qué paso de la secuencia vamos cuando forzamos
 int indiceSecuencia = 0;
@@ -111,30 +111,18 @@ void loop() {
     PWM = map(PWM, 51, 1023, 0, 204);
   }
   // Vamos a arrancarlo desde cero
-  switch (estado) {
-    case Estado_Aling:
-
-
-      break;
-
-    case Estado_Ramp:
-
-      break;
-
-    case Estado_Run:
-
-      break;
-  }
+ 
   // ---------------------------------------------
   unsigned long ahora = millis();
 
   switch (estado) {
     case Estado_Aling:
       // en este estado solo queremos mantener el rotor
+      
       // en la posición real que tenía al inicio (hallInicial)
       // ya hicimos la conmutación en leerHalls()
       // aquí solo esperamos un rato sin delay
-      if (ahora - tiempoAnterior >= 200) {  // 200 ms de alineado
+      if (ahora - tiempoAnterior >= 5) {   // 200 ms de alineado
         // pasamos a la rampa
         // empezamos la rampa desde el índice que corresponde al hall inicial
         indiceSecuencia = buscarIndicePorHall(hallInicial);
@@ -143,11 +131,12 @@ void loop() {
         estado = Estado_Ramp;
       }
       break;
-
+  
     case Estado_Ramp:
+    Serial.print("Estoy aqui");
       // aquí vamos forzando la secuencia cada X ms
       // por ejemplo cada 8 ms
-      if (ahora - tiempoAnterior >= 8) {
+      if (ahora - tiempoAnterior >= 1) {
         tiempoAnterior = ahora;
 
         // activamos el paso actual de la secuencia
@@ -171,12 +160,12 @@ void loop() {
     case Estado_Run:
       // aquí ya no hacemos nada especial:
       // ya funcionan las interrupciones ISR_Halls()
+      ISR_Halls();
       break;
   }
   // ====================================================
 }
 // ---------------------------------------------
-}
 // -------------------------------------------------------------------
 // Vamos a plantear el arranque
 void leerHalls() {

@@ -68,6 +68,7 @@ void loop() {
   } else {
     PWM = map(PWM, 51, 1023, 0, 204);
   }
+ 
 }
 
 
@@ -84,8 +85,13 @@ void ISR_Halls() {
 
   int hallState = (ValDIO0 << 2) | (ValDIO1 << 1) | ValDIO2;  // asigno mi máscara para poder llamar a
   // los sensores de efecto hall de forma mas clara y sencilla
-
-  giroSentidoDirecto(hallState);
+ /*Serial.print("   H0=");
+  Serial.print(ValDIO0);
+  Serial.print(" H1=");
+  Serial.print(ValDIO1);
+  Serial.print(" H2=");
+  Serial.println(ValDIO2);
+  giroSentidoDirecto(hallState);*/
 }
 
 // ------------------------------------------------------------------
