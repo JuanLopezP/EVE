@@ -93,6 +93,7 @@ void loop() {
   PWM = analogRead(POT);
 
   // Zona muerta y limitación
+
   if (PWM < 51) {
     PWM = 0;
   } else {

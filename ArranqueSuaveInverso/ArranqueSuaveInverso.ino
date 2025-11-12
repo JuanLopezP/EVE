@@ -1,5 +1,5 @@
 // Control BLDC con Arduino Pro Micro
-// Giro en sentido directo
+// Giro en sentido inverso
 
 // Pines de los transistores
 const int GH = 5;  // GREEN alto  (PWM)  -> MOSFET alto fase verde
@@ -20,8 +20,15 @@ const int H0_PIN = 2;  // Hall 0
 const int H1_PIN = 3;  // Hall 1
 const int H2_PIN = 7;  // Hall 2
 
+// Variables globales
+int PWM;                            // Para controlar el PWM del motor
+//int lastHallState = -1;             // Para guardar el último estado de los Hall
+unsigned long lastChangeTime = 0;   // Para verificar cuánto tiempo ha pasado
+const unsigned long timeout = 200;  // Tiempo que esperamos antes de forzar el siguiente paso (200 ms)
 
-int PWM;  // declaramos una variable para el PWM
+// Secuencia de conmutación
+int secuencia[6] = { 0b010, 0b011, 0b001, 0b101, 0b100, 0b110 };
+int indiceSecuencia = 0;
 
 //------------------------------------------------------------------------------
 
@@ -41,7 +48,7 @@ void setup() {
   pinMode(YL, OUTPUT);
 
 
-  // Interrupciones (cada vez que cambie cualquier sensor de efecto hall)
+  // Interrupciones (cada vez que cambie cualquier hall)
   attachInterrupt(digitalPinToInterrupt(H0_PIN), ISR_Halls, CHANGE);
   attachInterrupt(digitalPinToInterrupt(H1_PIN), ISR_Halls, CHANGE);
   attachInterrupt(digitalPinToInterrupt(H2_PIN), ISR_Halls, CHANGE);
@@ -68,13 +75,31 @@ void loop() {
   } else {
     PWM = map(PWM, 51, 1023, 0, 204);
   }
- 
+
+ unsigned long ahora = millis();  // Leo el tiempo actual
+
+  if (PWM > 0) {
+    if (ahora - lastChangeTime >= timeout) {
+      // Forzamos el siguiente paso de la secuencia
+      int hallForzado = secuencia[indiceSecuencia];
+      giroSentidoInverso(hallForzado);
+
+      // Avanzamos al siguiente paso de la secuencia
+      indiceSecuencia++;
+      if (indiceSecuencia >= 6) {
+        indiceSecuencia = 0;  // Si llegamos al final de la secuencia, volvemos al inicio
+      }
+      lastChangeTime = ahora;  // Reiniciamos el temporizador
+    }
+
+  } else {
+    // Si los Hall han cambiado, actualizamos el último estado y dejamos que las interrupciones se encarguen
+  }
 }
 
 
 
 //  ---------------------------------------------------------------
-
 // Interrupciones:
 
 void ISR_Halls() {
@@ -83,84 +108,21 @@ void ISR_Halls() {
   int ValDIO1 = digitalRead(H1_PIN);  //Leo el hall1
   int ValDIO2 = digitalRead(H2_PIN);  //Leo el hall2
 
-  int hallState = (ValDIO0 << 2) | (ValDIO1 << 1) | ValDIO2;  // asigno mi máscara para poder llamar a
+  int hallState = (ValDIO0 << 2) | (ValDIO1 << 1) | ValDIO2; // asigno mi máscara para poder llamar a
   // los sensores de efecto hall de forma mas clara y sencilla
- /*Serial.print("   H0=");
-  Serial.print(ValDIO0);
-  Serial.print(" H1=");
-  Serial.print(ValDIO1);
-  Serial.print(" H2=");
-  Serial.println(ValDIO2);
-  giroSentidoDirecto(hallState);*/
+  giroSentidoInverso(hallState);
+  lastChangeTime = millis();
 }
 
 // ------------------------------------------------------------------
-
-void giroSentidoDirecto(int hallState) {
+void giroSentidoInverso(int hallState) {
 
 
   switch (hallState) {
-    case 0b000:  //nunca vamos a tener los halls en 000 y por tanto no se va a dar
+    case 0b000:  //nunca vamos a tener los halls en 000
       break;
 
     case 0b001:
-      // GL = 1, YH = 1
-      digitalWrite(GH, LOW);
-      digitalWrite(BH, LOW);
-      analogWrite(YH, PWM);
-
-      digitalWrite(GL, LOW);
-      digitalWrite(BL, HIGH);
-      digitalWrite(YL, HIGH);
-      break;
-
-    case 0b010:
-      // BH = 1, YL = 1
-      digitalWrite(GH, LOW);
-      analogWrite(BH, PWM);
-      digitalWrite(YH, LOW);
-
-      digitalWrite(GL, HIGH);
-      digitalWrite(BL, HIGH);
-      digitalWrite(YL, LOW);
-      break;
-
-    case 0b011:
-      // GL = 1, BH = 1
-      digitalWrite(GH, LOW);
-      analogWrite(BH, PWM);
-      digitalWrite(YH, LOW);
-
-      digitalWrite(GL, LOW);
-      digitalWrite(BL, HIGH);
-      digitalWrite(YL, HIGH);
-
-      break;
-
-    case 0b100:
-      // GH = 1, BL = 1
-
-      analogWrite(GH, PWM);
-      digitalWrite(BH, LOW);
-      digitalWrite(YH, LOW);
-
-      digitalWrite(GL, HIGH);
-      digitalWrite(BL, LOW);
-      digitalWrite(YL, HIGH);
-      break;
-
-    case 0b101:
-      // BL = 1, YH = 1
-      digitalWrite(GH, LOW);
-      digitalWrite(BH, LOW);
-      analogWrite(YH, PWM);
-
-      digitalWrite(GL, HIGH);
-      digitalWrite(BL, LOW);
-      digitalWrite(YL, HIGH);
-      break;
-
-    case 0b110:
       // GH = 1, YL = 1
       analogWrite(GH, PWM);
       digitalWrite(BH, LOW);
@@ -171,7 +133,63 @@ void giroSentidoDirecto(int hallState) {
       digitalWrite(YL, LOW);
       break;
 
-    case 0b111:  //nunca vamos a tener los halls en 111 no van a estar todos encendidos a la vez
+    case 0b010:
+      // BL = 1, YH = 1
+      digitalWrite(GH, LOW);
+      digitalWrite(BH, LOW);
+      analogWrite(YH, PWM);
+
+      digitalWrite(GL, HIGH);
+      digitalWrite(BL, LOW);
+      digitalWrite(YL, HIGH);
+      break;
+
+    case 0b011:
+      // GH = 1, BL = 1
+      analogWrite(GH, PWM);
+      digitalWrite(BH, LOW);
+      digitalWrite(YH, LOW);
+
+      digitalWrite(GL, HIGH);
+      digitalWrite(BL, LOW);
+      digitalWrite(YL, HIGH);
+
+      break;
+
+    case 0b100:
+      // GL = 1, BH = 1
+      digitalWrite(GH, LOW);
+      analogWrite(BH, PWM);
+      digitalWrite(YH, LOW);
+
+      digitalWrite(GL, LOW);
+      digitalWrite(BL, HIGH);
+      digitalWrite(YL, HIGH);
+      break;
+
+    case 0b101:
+      // BH = 1, YL = 1
+      digitalWrite(GH, LOW);
+      analogWrite(BH, PWM);
+      digitalWrite(YH, LOW);
+
+      digitalWrite(GL, HIGH);
+      digitalWrite(BL, HIGH);
+      digitalWrite(YL, LOW);
+      break;
+
+    case 0b110:
+      // GL = 1, YH = 1
+      digitalWrite(GH, LOW);
+      digitalWrite(BH, LOW);
+      analogWrite(YH, PWM);
+
+      digitalWrite(GL, LOW);
+      digitalWrite(BL, HIGH);
+      digitalWrite(YL, HIGH);
+      break;
+
+    case 0b111:  //nunca vamos a tener los halls en 111
       break;
   }
 }

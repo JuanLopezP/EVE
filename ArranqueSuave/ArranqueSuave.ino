@@ -21,7 +21,18 @@ const int H1_PIN = 3;  // Hall 1
 const int H2_PIN = 7;  // Hall 2
 
 
-int PWM;  // declaramos una variable para el PWM
+
+
+
+// Variables globales
+int PWM;                            // Para controlar el PWM del motor
+//int lastHallState = -1;             // Para guardar el último estado de los Hall
+unsigned long lastChangeTime = 0;   // Para verificar cuánto tiempo ha pasado
+const unsigned long timeout = 200;  // Tiempo que esperamos antes de forzar el siguiente paso (200 ms)
+
+// Secuencia de conmutación
+int secuencia[6] = { 0b110, 0b100, 0b101, 0b001, 0b011, 0b010 };
+int indiceSecuencia = 0;
 
 //------------------------------------------------------------------------------
 
@@ -60,7 +71,6 @@ void loop() {
   // leo el potenciómetro
   PWM = analogRead(POT);
 
-
   // lo paso a PWM limitado al 80%
   // zona muerta al 5%
   if (PWM < 51) {
@@ -68,10 +78,34 @@ void loop() {
   } else {
     PWM = map(PWM, 51, 1023, 0, 204);
   }
- 
+  unsigned long ahora = millis();  // Leer el tiempo actual
+  /*
+  // Leer los valores de los sensores Hall
+  int h0 = digitalRead(H0_PIN);
+  int h1 = digitalRead(H1_PIN);
+  int h2 = digitalRead(H2_PIN);
+
+  int hallState = (h0 << 2) | (h1 << 1) | h2;
+*/
+  if (PWM > 0) {
+    if (ahora - lastChangeTime >= timeout) {
+      // Forzamos el siguiente paso de la secuencia
+      int hallForzado = secuencia[indiceSecuencia];
+      giroSentidoDirecto(hallForzado);
+
+      // Avanzamos al siguiente paso de la secuencia
+      indiceSecuencia++;
+      if (indiceSecuencia >= 6) {
+        indiceSecuencia = 0;  // Si llegamos al final de la secuencia, volvemos al inicio
+      }
+      lastChangeTime = ahora;  // Reiniciamos el temporizador
+    }
+
+  } else {
+    // Si los Hall han cambiado, actualizamos el último estado y dejamos que las interrupciones se encarguen
+  }
+  // Si el estado de los Hall no ha cambiado
 }
-
-
 
 //  ---------------------------------------------------------------
 
@@ -85,13 +119,9 @@ void ISR_Halls() {
 
   int hallState = (ValDIO0 << 2) | (ValDIO1 << 1) | ValDIO2;  // asigno mi máscara para poder llamar a
   // los sensores de efecto hall de forma mas clara y sencilla
- /*Serial.print("   H0=");
-  Serial.print(ValDIO0);
-  Serial.print(" H1=");
-  Serial.print(ValDIO1);
-  Serial.print(" H2=");
-  Serial.println(ValDIO2);
-  giroSentidoDirecto(hallState);*/
+
+  giroSentidoDirecto(hallState);
+  lastChangeTime = millis();
 }
 
 // ------------------------------------------------------------------
@@ -139,7 +169,6 @@ void giroSentidoDirecto(int hallState) {
 
     case 0b100:
       // GH = 1, BL = 1
-
       analogWrite(GH, PWM);
       digitalWrite(BH, LOW);
       digitalWrite(YH, LOW);
