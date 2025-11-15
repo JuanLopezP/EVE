@@ -11,7 +11,6 @@ const int BL = 8;  // BLUE  bajo  (DIG)  -> MOSFET bajo fase azul
 const int YH = 9;   // YELLOW alto (PWM)  -> MOSFET alto fase amarilla
 const int YL = 10;  // YELLOW bajo (DIG)  -> MOSFET bajo fase amarilla
 
-
 // Potenciómetro --> acelerador
 const int POT = A0;
 
@@ -21,34 +20,25 @@ const int H1_PIN = 3;  // Hall 1
 const int H2_PIN = 7;  // Hall 2
 
 // Giro
- // Para controlar el PWM del motor
-//int lastHallState = -1;             // Para guardar el último estado de los Hall
-//unsigned long lastChangeTime = 0;   // Para verificar cuánto tiempo ha pasado
-const unsigned long timeout = 200;  // Tiempo que esperamos antes de forzar el siguiente paso (200 ms)
-const unsigned long cambio = 5000;
-unsigned long inicio;
-volatile int D = 1;
-volatile unsigned long lastChangeTime = 0;
-volatile int PWM;
-volatile int indiceSecuenciaD = 0;
-volatile int indiceSecuenciaI = 0;
+volatile int PWM;                           // Para controlar el PWM del motor (lo usa loop e ISR)
+volatile unsigned long lastChangeTime = 0;  // Para verificar cuánto tiempo ha pasado desde el último cambio de Hall
+const unsigned long timeout = 200;          // Tiempo que esperamos antes de forzar el siguiente paso (200 ms)
+const unsigned long cambio = 2000;          // Tiempo de giro en cada sentido (5 s)
 
-// Secuencia de conmutación
+// Secuencia de conmutación (NO TOCADA)
 int secuenciaD[6] = { 0b110, 0b100, 0b101, 0b001, 0b011, 0b010 };
-//int indiceSecuenciaD = 0;
+int indiceSecuenciaD = 0;
 
 int secuenciaI[6] = { 0b010, 0b011, 0b001, 0b101, 0b100, 0b110 };
-//int indiceSecuenciaI = 0;
+int indiceSecuenciaI = 0;
 
 // Variables de control
-
-unsigned long ahora_cambio;
+volatile int D = 1;  // 1 = directo, 2 = inverso, 0 = parado (solo detectar Halls)
 
 
 void setup() {
 
   // Sensores Hall como entrada con pullup interno
-  Serial.begin(9600);
   pinMode(H0_PIN, INPUT_PULLUP);
   pinMode(H1_PIN, INPUT_PULLUP);
   pinMode(H2_PIN, INPUT_PULLUP);
@@ -60,137 +50,87 @@ void setup() {
   pinMode(BL, OUTPUT);
   pinMode(YH, OUTPUT);
   pinMode(YL, OUTPUT);
-
+  pinMode(20, INPUT);
+  pinMode(21, OUTPUT);
 
   // Interrupciones (cada vez que cambie cualquier hall)
   attachInterrupt(digitalPinToInterrupt(H0_PIN), ISR_Halls, CHANGE);
   attachInterrupt(digitalPinToInterrupt(H1_PIN), ISR_Halls, CHANGE);
   attachInterrupt(digitalPinToInterrupt(H2_PIN), ISR_Halls, CHANGE);
 
-
   // Ajuste de frecuencia PWM alta (~31 kHz aprox)
   TCCR1B = TCCR1B & 0b11111000 | 0x01;  // Timer1 -> pin 9,10
   TCCR3B = TCCR3B & 0b11111000 | 0x01;  // Timer3 -> pin 5
   TCCR4B = TCCR4B & 0b11111000 | 0x01;  // Timer4 -> pin 6,13
 
-  ahora_cambio = millis();
+  lastChangeTime = millis();
 }
+
+
 
 
 void loop() {
+  // put your main code here, to run repeatedly:
+  // --------- 1) GIRO EN SENTIDO DIRECTO DURANTE 5 s ---------
 
-  // GIRO SENTIDO DIRECTO
-D = 1;
+  int lectura = analogRead(POT);
 
-  inicio = millis();
-  while (ahora_cambio - inicio <= cambio) {
-    ahora_cambio = millis();
-    // leo el potenciómetro
-    PWM = analogRead(POT);
-Serial.println("Hola mundo");
-    // lo paso a PWM limitado al 80%
-    // zona muerta al 5%
-    if (PWM < 51) {
-      PWM = 0;
-    } else {
-      PWM = map(PWM, 51, 1023, 0, 204);
-    }
-    unsigned long ahora = millis();  // Leer el tiempo actual
-
-    if (PWM > 0) {
-      if (ahora - lastChangeTime >= timeout) {
-        // Forzamos el siguiente paso de la secuencia
-        int hallForzado = secuenciaD[indiceSecuenciaD];
-        giroSentidoDirecto(hallForzado);
-
-        // Avanzamos al siguiente paso de la secuencia
-        indiceSecuenciaD++;
-        if (indiceSecuenciaD >= 6) {
-          indiceSecuenciaD = 0;  // Si llegamos al final de la secuencia, volvemos al inicio
-        }
-        lastChangeTime = ahora;  // Reiniciamos el temporizador
-      }
-    }
+  // lo paso a PWM limitado al 80%
+  // zona muerta al 5%
+  if (lectura < 51) {
+    PWM = 0;
+  } else {
+    PWM = map(lectura, 51, 1023, 0, 204);
   }
 
-  D = 0;
-
-  unsigned long ahora = millis();
-  while (ahora - lastChangeTime <= timeout) {
+  if (PWM > 0) {
     unsigned long ahora = millis();
-  }
+    // Si el estado de los Hall no ha cambiado en 'timeout' ms, forzamos siguiente paso
+    if (ahora - lastChangeTime >= timeout) {
+      int hallForzado = secuenciaD[indiceSecuenciaD];
+      giroSentidoDirecto(hallForzado);
 
-  D = 2;
-
-  inicio = millis();
-
-  while (ahora_cambio - inicio <= cambio) {
-    ahora_cambio = millis();
-
-    // leo el potenciómetro
-    PWM = analogRead(POT);
-    
-
-    // lo paso a PWM limitado al 80%
-    // zona muerta al 5%
-    if (PWM < 51) {
-      PWM = 0;
-    } else {
-      PWM = map(PWM, 51, 1023, 0, 204);
-    }
-
-    unsigned long ahora = millis();  // Leo el tiempo actual
-
-    if (PWM > 0) {
-      if (ahora - lastChangeTime >= timeout) {
-        // Forzamos el siguiente paso de la secuencia
-        int hallForzado = secuenciaI[indiceSecuenciaI];
-        giroSentidoInverso(hallForzado);
-
-        // Avanzamos al siguiente paso de la secuencia
-        indiceSecuenciaI++;
-        if (indiceSecuenciaI >= 6) {
-          indiceSecuenciaI = 0;  // Si llegamos al final de la secuencia, volvemos al inicio
-        }
-        lastChangeTime = ahora;  // Reiniciamos el temporizador
+      indiceSecuenciaD++;
+      if (indiceSecuenciaD >= 6) {
+        indiceSecuenciaD = 0;  // Volvemos al inicio de la secuencia
       }
+      lastChangeTime = ahora;
     }
   }
-
-
-  ahora = millis();
-  while (ahora - lastChangeTime <= timeout) {
-    ahora = millis();
-  }
-  D = 1;
 }
 
-// GIRO DIRECTO INTERRUPIONES
+
+
+
+
+// ================== ISR DE LOS HALLS ==================
 
 void ISR_Halls() {
-  //Leo los valores de los sensores Hall
+  // Leo los valores de los sensores Hall
+  int ValDIO0 = digitalRead(H0_PIN);  // Leo el hall0
+  int ValDIO1 = digitalRead(H1_PIN);  // Leo el hall1
+  int ValDIO2 = digitalRead(H2_PIN);  // Leo el hall2
 
-  int ValDIO0 = digitalRead(H0_PIN);  //Leo el hall0
-  int ValDIO1 = digitalRead(H1_PIN);  //Leo el hall1
-  int ValDIO2 = digitalRead(H2_PIN);  //Leo el hall2
+  int hallState = (ValDIO0 << 2) | (ValDIO1 << 1) | ValDIO2;
 
-  int hallState = (ValDIO0 << 2) | (ValDIO1 << 1) | ValDIO2;  // asigno mi máscara para poder llamar a
-  // los sensores de efecto hall de forma mas clara y sencilla
   if (D == 1) {
     giroSentidoDirecto(hallState);
   }
   if (D == 2) {
     giroSentidoInverso(hallState);
   }
+
+  // Siempre que haya un cambio de Hall, actualizamos lastChangeTime
   lastChangeTime = millis();
 }
 
 // ------------------------------------------------------------------
+// GIRO DIRECTO (NO TOCADO)
 
 void giroSentidoDirecto(int hallState) {
 
   switch (hallState) {
-    case 0b000:  //nunca vamos a tener los halls en 000 y por tanto no se va a dar
+    case 0b000:  // nunca vamos a tener los halls en 000 y por tanto no se va a dar
       break;
 
     case 0b001:
@@ -260,20 +200,18 @@ void giroSentidoDirecto(int hallState) {
       digitalWrite(YL, LOW);
       break;
 
-    case 0b111:  //nunca vamos a tener los halls en 111 no van a estar todos encendidos a la vez
+    case 0b111:  // nunca vamos a tener los halls en 111 no van a estar todos encendidos a la vez
       break;
   }
 }
-
-
-//GIRO INVERSO INTERRUPCIONES
 
 // ------------------------------------------------------------------
+// GIRO INVERSO (NO TOCADO)
+
 void giroSentidoInverso(int hallState) {
 
-
   switch (hallState) {
-    case 0b000:  //nunca vamos a tener los halls en 000
+    case 0b000:  // nunca vamos a tener los halls en 000
       break;
 
     case 0b001:
@@ -343,7 +281,12 @@ void giroSentidoInverso(int hallState) {
       digitalWrite(YL, HIGH);
       break;
 
-    case 0b111:  //nunca vamos a tener los halls en 111
+    case 0b111:  // nunca vamos a tener los halls en 111
       break;
   }
 }
+
+
+
+
+
