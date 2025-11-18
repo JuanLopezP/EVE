@@ -27,10 +27,11 @@ unsigned long lastChangeTime = 0;   // Para verificar cuánto tiempo ha pasado
 const unsigned long timeout = 200;  // Tiempo que esperamos antes de forzar el siguiente paso (200 ms)
 
 // Secuencia de conmutación
-int secuencia[6] = { 0b010, 0b011, 0b001, 0b101, 0b100, 0b110 };
-int indiceSecuencia = 0;
+int secuencia[6] = { 0b010, 0b011, 0b001, 0b101, 0b100, 0b110 }; // Secuencia obtenida al girar el motor en sentido directo
+int indiceSecuencia = 0; //Inidce que nos permitirá recorrer la secuencia en orden en el loop
 
 //------------------------------------------------------------------------------
+// DECLARAMOS LOS PINES QUE VAMOS A USAR PARA CADA TAREA
 
 void setup() {
 
@@ -39,7 +40,7 @@ void setup() {
   pinMode(H1_PIN, INPUT_PULLUP);
   pinMode(H2_PIN, INPUT_PULLUP);
 
-  // Salidas de potencia
+  // Salidas de potencia para el control del motor 
   pinMode(GH, OUTPUT);
   pinMode(GL, OUTPUT);
   pinMode(BH, OUTPUT);
@@ -48,7 +49,7 @@ void setup() {
   pinMode(YL, OUTPUT);
 
 
-  // Interrupciones (cada vez que cambie cualquier hall)
+  // Declaración de las interrupciones (cada vez que cambie cualquier hall)
   attachInterrupt(digitalPinToInterrupt(H0_PIN), ISR_Halls, CHANGE);
   attachInterrupt(digitalPinToInterrupt(H1_PIN), ISR_Halls, CHANGE);
   attachInterrupt(digitalPinToInterrupt(H2_PIN), ISR_Halls, CHANGE);
@@ -61,46 +62,48 @@ void setup() {
 }
 
 //------------------------------------------------------------------
-
+// "OBLIGAMOS" A REALIZAR LA SECUENCIA AL MOTOR
 void loop() {
 
   // leo el potenciómetro
   PWM = analogRead(POT);
 
-
-  // lo paso a PWM limitado al 80%
-  // zona muerta al 5%
+  // Limitamos la zona de funcionamiento del motor en función de lo que reciba en el potenciómetro.
+  // Marcamos el máximo al 80% y la zona muerta si el resultado del potenciometro es menor que 5%
   if (PWM < 51) {
     PWM = 0;
   } else {
     PWM = map(PWM, 51, 1023, 0, 204);
   }
 
+
+  // Tratamos de arrancar el motor forzando la secuencia de arranque para coseguir el movimiento y
+  // lograr que las interrupciones tomen el control.
+  // Para lograr esto hemos declarado una variable que se encarga de guardar el tiempo en el que los sensores
+  // cambiaron de valor por última vez.
+
  unsigned long ahora = millis();  // Leo el tiempo actual
 
-  if (PWM > 0) {
-    if (ahora - lastChangeTime >= timeout) {
+  if (PWM > 0) {  // Siempre que el acelerador este activo
+    if (ahora - lastChangeTime >= timeout) {  // resto este instante con la última vez que se activaron los sensores y si lleva
+    // más de 200 ms parados entonces inicio mi secuencia para tratar de arrancarlo
       // Forzamos el siguiente paso de la secuencia
       int hallForzado = secuencia[indiceSecuencia];
-      giroSentidoInverso(hallForzado);
+      giroSentidoInverso(hallForzado); // Obligamos a que el rotor tenga esa secuencia
 
-      // Avanzamos al siguiente paso de la secuencia
-      indiceSecuencia++;
+     
+      indiceSecuencia++;  // Avanzamos al siguiente paso de la secuencia
       if (indiceSecuencia >= 6) {
         indiceSecuencia = 0;  // Si llegamos al final de la secuencia, volvemos al inicio
       }
       lastChangeTime = ahora;  // Reiniciamos el temporizador
     }
 
-  } else {
-    // Si los Hall han cambiado, actualizamos el último estado y dejamos que las interrupciones se encarguen
-  }
+  } 
 }
 
-
-
 //  ---------------------------------------------------------------
-// Interrupciones:
+// INTERRUPCIONES
 
 void ISR_Halls() {
   //Leo los valores de los sensores Hall
@@ -110,14 +113,15 @@ void ISR_Halls() {
 
   int hallState = (ValDIO0 << 2) | (ValDIO1 << 1) | ValDIO2; // asigno mi máscara para poder llamar a
   // los sensores de efecto hall de forma mas clara y sencilla
-  giroSentidoInverso(hallState);
-  lastChangeTime = millis();
+  giroSentidoInverso(hallState); // Mando el resultado para continuar el funcionamiento del motor
+  lastChangeTime = millis(); // Actualizo mi tiempo de forma que guardo la ultima vez que se movieron los sensores
+  // Si no para de moverse se actualizará todo el rato, si no simplemente se quedará con la última. 
 }
 
 // ------------------------------------------------------------------
+// IMPLEMENTACION DE LA TABLA DE VERDAD 
+// Implementamos en cada case una de las configuraciones de la tabla de verdad
 void giroSentidoInverso(int hallState) {
-
-
   switch (hallState) {
     case 0b000:  //nunca vamos a tener los halls en 000
       break;
@@ -134,7 +138,7 @@ void giroSentidoInverso(int hallState) {
       break;
 
     case 0b010:
-      // BL = 1, YH = 1
+      // YH = 1, BL = 1
       digitalWrite(GH, LOW);
       digitalWrite(BH, LOW);
       analogWrite(YH, PWM);
@@ -153,11 +157,10 @@ void giroSentidoInverso(int hallState) {
       digitalWrite(GL, HIGH);
       digitalWrite(BL, LOW);
       digitalWrite(YL, HIGH);
-
       break;
 
     case 0b100:
-      // GL = 1, BH = 1
+      // BH = 1, GL = 1
       digitalWrite(GH, LOW);
       analogWrite(BH, PWM);
       digitalWrite(YH, LOW);
@@ -179,7 +182,7 @@ void giroSentidoInverso(int hallState) {
       break;
 
     case 0b110:
-      // GL = 1, YH = 1
+      // YH = 1, GL = 1 
       digitalWrite(GH, LOW);
       digitalWrite(BH, LOW);
       analogWrite(YH, PWM);
