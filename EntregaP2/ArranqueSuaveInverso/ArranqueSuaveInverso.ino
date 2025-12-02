@@ -1,5 +1,3 @@
-// María Pérez Pérez-Cejuela
-// Juan López Puebla
 // ESTE CÓDIGO HA SIDO PROBADO Y COMPROBADO QUE FUNCIONA EN LABORATORIO
 
 // Control BLDC con Arduino Pro Micro
